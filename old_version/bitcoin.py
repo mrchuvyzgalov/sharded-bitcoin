@@ -20,9 +20,9 @@ from service.user_service import UserService
 
 
 class Bitcoin:
-    def __init__(self, block_capacity: int = 100) -> None:
+    def __init__(self, block_capacity: int) -> None:
         self._users: list[User] = []
-        self._blockchains: list[Blockchain] = [Basic.BASIC_BLOCKCHAIN]
+        self._blockchains: list[Blockchain] = [Blockchain(owner=Basic.FIRST_USER, block_capacity=block_capacity)]
         self._block_capacity: int = block_capacity
 
         self._miner: Optional[User] = None

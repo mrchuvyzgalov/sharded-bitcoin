@@ -11,7 +11,7 @@ BlockchainData = namedtuple("BlockchainData", ["owner", "blocks", "mem_pool"])
 class Blockchain:
     def __init__(self,
                  owner: User,
-                 block_capacity: int = 100) -> None:
+                 block_capacity: int) -> None:
         self._owner = owner
         self._blocks: list[Block] = []
         self._users: list[User] = []
@@ -27,13 +27,11 @@ class Blockchain:
         self._mem_pool.append(transaction)
 
     def add_block(self, block: Block) -> None:
-        block.set_previous_hash(self._blocks[-1].calculate_hash())
         self._blocks.append(block)
-
         self._mem_pool.clear()
 
     def need_to_create_block(self) -> bool:
-        return len(self._mem_pool) == self._block_capacity
+        return len(self._mem_pool) >= self._block_capacity
 
     def set_owner(self, owner: User) -> None:
         self._owner = owner

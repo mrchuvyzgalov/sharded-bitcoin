@@ -1,18 +1,18 @@
 import random
 import time
+from collections import namedtuple
 
 from common.user import User
+from config.constance import Constants
 from old_version.bitcoin import Bitcoin
 
+LaunchOldBitcoinData = namedtuple("LaunchOldBitcoinData", ["time", "amount_of_transactions"])
 
-def simple_test() -> None:
-    amount_of_attempts = 10
-    amount_of_users = 100
-    users: list[User] = []
-    bitcoin = Bitcoin(block_capacity=100)
-
-    for _ in range(amount_of_users):
-        users.append(bitcoin.create_user())
+def launch_bitcoin(amount_of_blocks: int,
+                   amount_of_users: int,
+                   block_capacity: int) -> LaunchOldBitcoinData:
+    bitcoin = Bitcoin(block_capacity=block_capacity)
+    users: list[User] = [bitcoin.create_user() for _ in range(amount_of_users)]
 
     bitcoin.set_validators()
 
@@ -23,15 +23,15 @@ def simple_test() -> None:
     start = time.time()
     amount_of_transactions: int = 0
 
-    for _ in range(amount_of_attempts):
+    for _ in range(amount_of_blocks):
         is_block_created: bool = False
 
         while not is_block_created:
             user_num: int = random.randint(0, len(users) - 1)
             is_sent: bool = bitcoin.send_money(from_user=users[user_num].get_data().id,
                                                to_user=users[(user_num + 1) % len(users)].get_data().id,
-                                               money=5.0,
-                                               fee=0.001)
+                                               money=1.0,
+                                               fee=Constants.STANDART_FEE)
 
             if is_sent:
                 amount_of_transactions += 1
@@ -39,11 +39,4 @@ def simple_test() -> None:
             if bitcoin.try_to_create_new_block():
                 is_block_created = True
 
-    end = time.time()
-
-    duration_minutes = (end - start) / 60
-    print(f"Time execution: {duration_minutes:.2f} minutes")
-    print(f"Amount of transactions: {amount_of_transactions}")
-    print(f"Amount of transactions per second: {amount_of_transactions / (duration_minutes * 60):.2f}")
-
-    print(bitcoin.get_balances())
+    return LaunchOldBitcoinData(time=time.time() - start, amount_of_transactions=amount_of_transactions)
