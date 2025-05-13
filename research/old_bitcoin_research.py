@@ -1,4 +1,4 @@
-from launch.old_bitcoin_launch import launch_bitcoin, LaunchOldBitcoinData
+from research.launch.old_bitcoin_launch import launch_bitcoin, LaunchOldBitcoinData
 
 
 def research() -> dict[int, float]:

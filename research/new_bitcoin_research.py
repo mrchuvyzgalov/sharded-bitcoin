@@ -1,4 +1,4 @@
-from launch.new_bitcoin_launch import LaunchNewBitcoinData, launch_best_new_bitcoin, launch_random_new_bitcoin, \
+from research.launch.new_bitcoin_launch import LaunchNewBitcoinData, launch_best_new_bitcoin, launch_random_new_bitcoin, \
     launch_worst_new_bitcoin
 
 
