@@ -1,21 +1,85 @@
 from collections import namedtuple
+from typing import Optional
+# from typing import Optional
 from uuid import UUID
 
 from src.common.block import Block
 from src.common.blockchain import Blockchain, BlockchainData
+# from src.common.cache import Cache
 from src.common.input import InputData
 from src.common.output import OutputData
 from src.common.transaction import Transaction, TransactionData
 from src.common.user import User, UserData
+from src.new_version.beacon_block import BeaconBlock
+from src.new_version.new_blockchain import NewBlockchain
+from src.service.shard_service import ShardService
 
 FreeTransactionData = namedtuple("FreeTransactionData", ["tx_id", "output"])
 
 class TransactionService:
     @staticmethod
-    def find_free_outputs_by_user(blockchain: Blockchain, user: User) -> list[FreeTransactionData]:
+    def find_free_outputs_by_user_new(blockchain: NewBlockchain,
+                                      user: User,
+                                      shard_blocks: dict[int, list[Block]],
+                                      beacon_blocks: list[BeaconBlock]) -> list[FreeTransactionData]:
+        all_txs: list[Transaction] = TransactionService._find_connected_with_user_txs_new(shard_blocks=shard_blocks,
+                                                                                          beacon_blocks=beacon_blocks,
+                                                                                          user=user,
+                                                                                          blockchain=blockchain)
+        free_outputs_set: set[UUID] = TransactionService._find_free_outputs_ids(all_txs=all_txs, user=user)
+        return TransactionService._form_free_transaction_data(all_txs=all_txs, free_outputs_set=free_outputs_set)
+
+    @staticmethod
+    def find_free_outputs_by_user(blockchain: Blockchain,
+                                  user: User) -> list[FreeTransactionData]:
         all_txs: list[Transaction] = TransactionService._find_connected_with_user_txs(blockchain=blockchain, user=user)
         free_outputs_set: set[UUID] = TransactionService._find_free_outputs_ids(all_txs=all_txs, user=user)
         return TransactionService._form_free_transaction_data(all_txs=all_txs, free_outputs_set=free_outputs_set)
+
+    @staticmethod
+    def _find_connected_with_user_txs_new(shard_blocks: dict[int, list[Block]],
+                                          beacon_blocks: list[BeaconBlock],
+                                          user: User,
+                                          blockchain: NewBlockchain) -> list[Transaction]:
+        shard_id = ShardService.get_shard_number_by_user(user.get_data().id, len(shard_blocks))
+        blocks: list[Block] = shard_blocks[shard_id]
+
+        result: list[Transaction] = []
+
+        for i in range(len(beacon_blocks)):
+            block_data = blocks[i].get_data()
+
+            for tx in block_data.transactions:
+                if TransactionService._tx_suits_for_user(tx=tx, user=user):
+                    result.append(tx)
+
+            beacon_block_data = beacon_blocks[i].get_data()
+
+            for cl in beacon_block_data.cross_links:
+                for ctx in cl.get_data().cross_txs:
+                    if ctx.get_data().shard_to == shard_id:
+                        from_shard_id = ctx.get_data().shard_from
+                        from_shard_block: Block = shard_blocks[from_shard_id][i]
+
+                        tx: Transaction = TransactionService._get_transaction_by_id(tx_id=ctx.get_data().tx_id,
+                                                                                    block=from_shard_block)
+
+                        if TransactionService._tx_suits_for_user(tx=tx, user=user):
+                            result.append(tx)
+
+        mem_txs: list[Transaction] = blockchain.get_data().mem_pool
+        for tx in mem_txs:
+            if TransactionService._tx_suits_for_user(tx=tx, user=user):
+                result.append(tx)
+
+        return result
+
+    @staticmethod
+    def _get_transaction_by_id(tx_id: UUID, block: Block) -> Optional[Transaction]:
+        for tx in block.get_data().transactions:
+            if tx.get_data().id == tx_id:
+                return tx
+        return None
 
     @staticmethod
     def _delete_used_outputs(blockchain: Blockchain,

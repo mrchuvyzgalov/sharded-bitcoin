@@ -11,6 +11,7 @@ from src.common.transaction import Transaction
 from src.common.user import User
 from src.config.config import Basic
 from src.config.constance import Constants
+from src.new_version.beacon_block import BeaconBlock
 from src.new_version.cross_link import CrossLink
 from src.new_version.cross_transaction import CrossTransaction
 from src.new_version.new_blockchain import NewBlockchain
@@ -40,12 +41,17 @@ class Shard:
     def get_blocks(self) -> list[Block]:
         return self._blockchains[0].get_data().blocks
 
-    def get_balances(self) -> dict[User, float]:
+    def get_balances(self,
+                     shard_blocks: dict[int, list[Block]],
+                     beacon_blocks: list[BeaconBlock]) -> dict[User, float]:
         result: dict[User, float] = {}
 
         for user in self._users:
             if ShardService.get_shard_number_by_user(user.get_data().id, self._amount_of_shards) == self._shard_id:
-                result[user] = BalanceService.get_balance_by_user(blockchain=self._blockchains[0], user=user)
+                result[user] = BalanceService.get_balance_by_user_new(blockchain=self._blockchains[0],
+                                                                      user=user,
+                                                                      shard_blocks=shard_blocks,
+                                                                      beacon_blocks=beacon_blocks)
 
         return result
 
@@ -114,11 +120,18 @@ class Shard:
                    from_user: UUID,
                    to_user: UUID,
                    money: float,
-                   fee: float) -> bool:
+                   fee: float,
+                   shard_blocks: dict[int, list[Block]],
+                   beacon_blocks: list[BeaconBlock]) -> bool:
         shard_from: int = ShardService.get_shard_number_by_user(user_id=from_user, amount_of_shards=self._amount_of_shards)
         shard_to: int = ShardService.get_shard_number_by_user(user_id=to_user,  amount_of_shards=self._amount_of_shards)
 
-        new_tx: Optional[Transaction] = self._create_tx(from_user=from_user, to_user=to_user, money=money, fee=fee)
+        new_tx: Optional[Transaction] = self._create_tx(from_user=from_user,
+                                                        to_user=to_user,
+                                                        money=money,
+                                                        fee=fee,
+                                                        shard_blocks=shard_blocks,
+                                                        beacon_blocks=beacon_blocks)
 
         if new_tx is None:
             return False
@@ -126,7 +139,9 @@ class Shard:
         self._add_tx(tx=new_tx)
 
         if shard_from != shard_to:
-            cross_tx: CrossTransaction = CrossTransaction(shard_from=shard_from, shard_to=shard_to, tx=new_tx)
+            cross_tx: CrossTransaction = CrossTransaction(shard_from=shard_from,
+                                                          shard_to=shard_to,
+                                                          tx_id=new_tx.get_data().id)
 
             for blockchain in self._blockchains:
                 blockchain.add_cross_transaction(cross_transaction=cross_tx)
@@ -153,10 +168,15 @@ class Shard:
                    from_user: UUID,
                    to_user: UUID,
                    money: float,
-                   fee: float) -> Optional[Transaction]:
+                   fee: float,
+                   shard_blocks: dict[int, list[Block]],
+                   beacon_blocks: list[BeaconBlock]) -> Optional[Transaction]:
         user, blockchain = self._find_user_and_blockchain(user_id=from_user)
 
-        free_outputs: list[FreeTransactionData] = TransactionService.find_free_outputs_by_user(blockchain=blockchain, user=user)
+        free_outputs: list[FreeTransactionData] = TransactionService.find_free_outputs_by_user_new(blockchain=blockchain,
+                                                                                                   user=user,
+                                                                                                   shard_blocks=shard_blocks,
+                                                                                                   beacon_blocks=beacon_blocks)
         new_inputs: Optional[list[Input]] = InputService.create_new_inputs(free_outputs=free_outputs,
                                                                            from_user=user,
                                                                            money=money,

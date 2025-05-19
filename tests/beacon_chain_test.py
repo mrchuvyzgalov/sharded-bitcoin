@@ -16,8 +16,8 @@ def test_beacon_accepts_valid_snapshot():
         bitcoin.add_reward_to_all_users()
         bitcoin.handle_shards()
 
-    users_in_shard, shard_numb = ([groups[0][0], groups[0][1]], 0) if len(groups[0]) >= 2 else (
-        [groups[1][0], groups[1][1]], 1)
+    users_in_shard, shard_numb = ([groups[0][0], groups[0][1]], 0) \
+        if len(groups[0]) >= 2 else ([groups[1][0], groups[1][1]], 1)
 
     for _ in range(block_capacity):
         bitcoin.send_money(from_user=users_in_shard[0].get_data().id,
@@ -50,7 +50,8 @@ def test_cross_shard_tx_in_snapshot():
 
     bitcoin = Bitcoin(amount_of_shards=amount_of_shards, block_capacity=block_capacity)
     users = [bitcoin.create_user() for _ in range(amount_of_users)]
-    groups = UserService.group_users_by_shards(users=users, amount_of_shards=amount_of_shards)
+    groups = UserService.group_users_by_shards(users=users,
+                                               amount_of_shards=amount_of_shards)
 
     bitcoin.set_validators()
 

@@ -111,7 +111,8 @@ def test_generate_valid_block_snapshot():
         if cross_link.get_data().shard_id == 1:
             is_the_second_block = True
 
-    return is_the_first_block and is_the_second_block and len(blocks[-1].get_data().cross_links) == 2
+    return (is_the_first_block and is_the_second_block
+            and len(blocks[-1].get_data().cross_links) == 2)
 
 
 # Reject invalid transaction

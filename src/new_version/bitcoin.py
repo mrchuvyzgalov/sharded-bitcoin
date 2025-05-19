@@ -1,4 +1,4 @@
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from uuid import UUID
 
 from src.common.block import Block
@@ -25,6 +25,9 @@ class Bitcoin:
         self._block_capacity: int = block_capacity
         self._amount_of_shards: int = amount_of_shards
         self._executor = ThreadPoolExecutor(max_workers=amount_of_shards)
+
+    def get_amount_of_shards(self) -> int:
+        return self._amount_of_shards
 
     def get_beacon_blocks(self) -> list[BeaconBlock]:
         return self._beacon.get_blocks()
@@ -60,8 +63,11 @@ class Bitcoin:
     def get_balances(self) -> dict[User, float]:
         result: dict[User, float] = {}
 
+        shard_blocks = self._get_shard_blocks()
+        beacon_blocks = self._beacon.get_blocks()
+
         for shard in self._shards:
-            result.update(shard.get_balances())
+            result.update(shard.get_balances(shard_blocks=shard_blocks, beacon_blocks=beacon_blocks))
 
         return result
 
@@ -73,11 +79,26 @@ class Bitcoin:
         self._check_user_existence(from_user=from_user,
                                    to_user=to_user)
 
-        shard_num_from: int = ShardService.get_shard_number_by_user(user_id=from_user, amount_of_shards=self._amount_of_shards)
+        shard_num_from: int = ShardService.get_shard_number_by_user(user_id=from_user,
+                                                                    amount_of_shards=self._amount_of_shards)
+
+        shard_blocks = self._get_shard_blocks()
+        beacon_blocks = self._beacon.get_blocks()
+
         return self._shards[shard_num_from].send_money(from_user=from_user,
                                                        to_user=to_user,
                                                        money=money,
-                                                       fee=fee)
+                                                       fee=fee,
+                                                       shard_blocks=shard_blocks,
+                                                       beacon_blocks=beacon_blocks)
+
+    def _get_shard_blocks(self) -> dict[int, list[Block]]:
+        blocks: dict[int, list[Block]] = dict()
+
+        for shard_id in range(self._amount_of_shards):
+            blocks[shard_id] = self._shards[shard_id].get_blocks()
+
+        return blocks
 
     def try_to_handle_new_blocks(self) -> bool:
         for shard in self._shards:
@@ -107,7 +128,6 @@ class Bitcoin:
         self._add_new_blocks(new_blocks)
         self._beacon.handle_block(cross_links)
         self._add_rewards(miners, new_blocks)
-        self._add_cross_transactions(cross_links)
 
     def __del__(self):
         self._executor.shutdown(wait=True)
@@ -123,13 +143,6 @@ class Bitcoin:
 
             shard_num: int = ShardService.get_shard_number_by_user(user_id=miner.get_data().id, amount_of_shards=self._amount_of_shards)
             self._shards[shard_num].add_reward_for_user(miner, fees)
-
-    def _add_cross_transactions(self, cross_links: dict[int, CrossLink]) -> None:
-        for shard_numb in range(self._amount_of_shards):
-            cross_link: CrossLink = cross_links[shard_numb]
-            for cross_tx in cross_link.get_data().cross_txs:
-                tx: Transaction = cross_tx.get_data().tx
-                self._shards[cross_tx.get_data().shard_to].add_cross_tx(tx)
 
     def _check_user_existence(self,
                               from_user: UUID,
